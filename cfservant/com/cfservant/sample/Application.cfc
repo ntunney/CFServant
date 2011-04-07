@@ -48,7 +48,7 @@
 		
 		<cfscript>
 			// override the behavior if we are hitting the ServiceProxy this will act like our onMissingMethod() for remote calls - thanks Ben Nadel --->
-			if ( findNoCase('GenServiceProxy.cfc', cgi.script_name) AND structKeyExists( arguments.exception, "func" ) ) {
+			if ( findNoCase(application.cfservant.getServiceProxyName(), cgi.script_name) AND structKeyExists( arguments.exception, "func" ) ) {
 				// grab the variables regardless if it as a GET or POST
 				var args = {};
 				structAppend(args, duplicate(url));
