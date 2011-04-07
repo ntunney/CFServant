@@ -1,0 +1,11 @@
+<cfservant>
+	<config>
+		<returnformatting>false</returnformatting>
+		<genproxy-override></genproxy-override>
+	</config>
+	<services>
+		<service ormbean="user" class="blogexamples.gen.UserService">
+			<dao class="blogexamples.gen.UserDAO" />
+		</service>
+	</services>
+</cfservant>
