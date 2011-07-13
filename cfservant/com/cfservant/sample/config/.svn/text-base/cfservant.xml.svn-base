@@ -2,7 +2,6 @@
 	<config>
 		<returnformatting>false</returnformatting>
 		<genproxy-override></genproxy-override>
-		<validateBeforePut>false</validateBeforePut>
 	</config>
 	<services>
 		<service ormbean="user" class="blogexamples.gen.UserService">

@@ -2,6 +2,11 @@ component accessors="false" {
 	
 	property String objectName;
 	property any Dao; 
+	property Boolean validateBeforePut; 
+	property any validateThis;
+	
+	import gov.va.iscpa.model.persistence.SaveEntityResult;
+	import gov.va.iscpa.model.validation.contextfactory.*;
 	
 	public function init () {
 		var metaData = getMetaData();
@@ -16,6 +21,22 @@ component accessors="false" {
 	
 	public any function getDAO() {
 		return this.dao;
+	}
+	
+	public function setValidateBeforePut(Boolean v) {
+		this.validateBeforePut = arguments.v;
+	}
+	
+	public any function getValidateBeforePut() {
+		return this.validateBeforePut;
+	}
+	
+	public function setValidateThis(Any validateThis) {
+		this.validateThis = arguments.validateThis;
+	}
+	
+	public any function getVAlidateThis() {
+		return this.validateThis;
 	}
 	
 	/* 
@@ -53,10 +74,30 @@ component accessors="false" {
 	}
 	
 	public any function put (any object) {
-		entitySave(arguments.object);
-		ormFlush();
-		entityReload(object);
-		return object;
+		if ( getValidateBeforePut() ){
+			// var dao = getDAO();
+			var saveEntityResult = new SaveEntityResult();
+			saveEntityResult.setSaved( false );
+			saveEntityResult.setEntity( object );
+			saveEntityResult.setValidation( validate( object, this.objectName ) );
+
+			if ( NOT saveEntityResult.getValidation().getIsSuccess() )
+			{
+				return saveEntityResult;
+			}
+			transaction{
+				entitySave( object );
+			}
+			saveEntityResult.setSaved( true );
+			return saveEntityResult;
+		}
+		else{
+			entitySave(arguments.object);
+			ormFlush();
+			entityReload(object);
+			return object;
+		}
+		
 	}
 	
 	public any function post (any object) {
@@ -70,7 +111,7 @@ component accessors="false" {
 		if ( !arguments.soft ) {
 			entityDelete(object);
 			ormFlush();
-			return true;
+			return object;
 		} else {
 			throw('Soft deletes not possible for #this.objectName#.  It does not implement ISoftDeleteable.');
 		}
@@ -88,7 +129,23 @@ component accessors="false" {
 			return evaluate("this.dao.#arguments.missingMethodName#(argumentCollection=arguments.missingMethodArguments)");
 		}
 		// otherwise we will fail from here, and give the error the dev would expect to see
-		throw(message="The method list was not found in component #getMetaData().path#.", type="Application", detail="Ensure that the method is defined, and that it is spelled correctly.");
+		throw(message="The method #missingMethodName# was not found in component #getMetaData().path#.", type="Application", detail="Ensure that the method is defined, and that it is spelled correctly.");
+	}
+	
+	function validate( domainObject, objectName )
+	{
+		var contextFactory = createObject( "component", "#objectName#ValidationContextFactory" );
+		var result = getValidateThis().validate( domainObject, "#objectName#", contextFactory.getContextFor( domainObject ) );
+
+		//provide a hook for custom validations functions at the object level
+		if( structKeyExists( variables, "validate#objectName#") ){
+			evaluate("validate#objectName#(domainObject, result)");
+		}
+
+		if( NOT arrayIsEmpty( result.getFailures() ) ){
+			result.setIsSuccess(false);
+		}
+		return result;
 	}
 	
 }

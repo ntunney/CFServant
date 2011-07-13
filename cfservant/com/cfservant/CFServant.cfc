@@ -4,13 +4,27 @@
 	<cfproperty type="String" name="configPath" />
 	<cfproperty type="Boolean" name="useReturnStructure" />
 	<cfproperty type="String" name="serviceProxyName" />
-	
+	<cfproperty type="boolean" name="validateBeforePut" />
+	<cfproperty type="any" name="validateThis" />
 	<cfscript>
-		public function init (String configPath) {
+		public function init (String configPath, Any validateThis) {
 			// empty services and initialize
 			setServices(structNew());
 			// read in and process the configuration
 			parseConfig(arguments.configPath);
+			setValidateThis( validateThis );
+		}
+		
+		public void function setServices( Struct services ){
+			for( var service in Services){
+				if( structKeyExists( services[ service ], "getValidateBeforePut" ) ){
+					services[ service ].setValidateBeforePut( getValidateBeforePut() );
+				}
+				if( structKeyExists( services[ service ], "getValidateThis" ) ){
+					services[ service ].setValidateThis( getValidateThis() );
+				}
+			}
+			variables.services = services;
 		}
 		
 		public GenService function getService(String ormBean) {
@@ -52,6 +66,13 @@
 				setServiceProxyName('GenServiceProxy.cfc');
 			}
 			
+			//do we want to validate before persisting
+			if ( structKeyExists(xml.cfservant.config, 'validateBeforePut') && lcase(xml.cfservant.config.validateBeforePut.xmlText) == 'true' ) {
+				setValidateBeforePut(true);
+			} else {
+				setValidateBeforePut(false);
+			}
+			
 			// now lets create the service beans
 			// shortcut ptr
 			var serviceNodes = xml.cfservant.services.xmlChildren;
@@ -63,6 +84,7 @@
 				if ( structKeyExists(serviceNodes[i], 'dao') ) {
 					variables.services[serviceNodes[i].xmlAttributes.ormBean].setDAO(evaluate("new #serviceNodes[i].dao.xmlAttributes.class#()"));
 				}
+				variables.services[serviceNodes[i].xmlAttributes.ormBean].setValidateBeforePut( getValidateBeforePut() );
 			}
 			
 			// writeDump(variables);
@@ -77,9 +99,19 @@
 		<cfscript>
 			// call the generic method handler in the service proxy
 				var proxy = new GenServiceProxy();
-				var ret = proxy.requestHandler(args, cgi.request_method);
+				var error = '';
+				
+				var data = proxy.requestHandler(args, arguments.requestMethod);
+				
 				if ( !structKeyExists(arguments.args, 'returnFormat') || !listContainsNoCase('json,plain,wddx', arguments.args.returnFormat) ) {
 					arguments.args.returnFormat = 'json';
+				}
+				
+				// package response
+				if ( getUseReturnStructure() ) {
+					var ret = packageResponse(data);
+				} else { // don't package response
+					var ret = data;
 				}
 				
 				var output = '';
@@ -98,6 +130,23 @@
 		
 		<cfheader statuscode="200" statustext="OK" />
 		<cfcontent type="text/plain" variable="#ToBinary( ToBase64( output ) )#" />
+		
+	</cffunction>
+	
+	<cffunction name="packageResponse" returntype="struct" output="false">
+		<cfargument name="data" type="struct" required="true" />
+		<cfargument name="success" type="boolean" default="true" />
+		<cfargument name="errorMsgs" type="array" default="#arrayNew(1)#" />
+		
+		<cfscript>
+			var ret = {
+				'data' = arguments.data,
+				'success' = arguments.success,
+				'errorMsgs' = arguments.errorMsgs
+			};
+			
+			return ret;
+		</cfscript>
 		
 	</cffunction>
 	
